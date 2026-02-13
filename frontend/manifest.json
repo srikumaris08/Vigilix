@@ -1,0 +1,8 @@
+{
+  "name": "Vigilix",
+  "short_name": "Vigilix",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#522e38",
+  "theme_color": "#b9375e"
+}
