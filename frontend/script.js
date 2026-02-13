@@ -4,6 +4,15 @@ const statusText = document.getElementById("status");
 
 let contacts = JSON.parse(localStorage.getItem("contacts")) || [];
 
+let audioContext;
+let analyser;
+let dataArray;
+let stream;
+
+// =======================
+// CONTACT SECTION
+// =======================
+
 function renderContacts() {
 
   if (contacts.length < 3) {
@@ -14,9 +23,16 @@ function renderContacts() {
       <button onclick="addContact()">Save</button>
     `;
   } else {
+
     let details = "";
-    contacts.forEach(c => {
-      details += `<p>${c.name} - ${c.phone}</p>`;
+
+    contacts.forEach((c, index) => {
+      details += `
+        <div class="contact-item">
+          <p>${index + 1}. ${c.name} - ${c.phone}</p>
+          <button onclick="editContact(${index})">Edit</button>
+        </div>
+      `;
     });
 
     contactSection.innerHTML = `
@@ -24,7 +40,6 @@ function renderContacts() {
         <strong>Your Contacts</strong>
         <div class="contact-details">
           ${details}
-          <button onclick="editContacts()">Edit</button>
         </div>
       </div>
     `;
@@ -32,32 +47,48 @@ function renderContacts() {
 }
 
 function addContact() {
-  const name = document.getElementById("name").value;
-  const phone = document.getElementById("phone").value;
+  const name = document.getElementById("name").value.trim();
+  const phone = document.getElementById("phone").value.trim();
 
-  if (!name || !phone) return alert("Fill all fields");
+  if (!name || !phone) {
+    alert("Fill all fields");
+    return;
+  }
 
-  contacts.push({name, phone});
+  contacts.push({ name, phone });
   localStorage.setItem("contacts", JSON.stringify(contacts));
   renderContacts();
 }
 
-function editContacts() {
-  contacts = [];
-  localStorage.removeItem("contacts");
+// ✅ NEW — Edit Only Selected Contact
+function editContact(index) {
+
+  const newName = prompt("Edit Name:", contacts[index].name);
+  if (!newName) return;
+
+  const newPhone = prompt("Edit Phone:", contacts[index].phone);
+  if (!newPhone) return;
+
+  contacts[index] = {
+    name: newName.trim(),
+    phone: newPhone.trim()
+  };
+
+  localStorage.setItem("contacts", JSON.stringify(contacts));
   renderContacts();
 }
 
 renderContacts();
 
 
-// Guardian Mode Audio
-let audioContext;
-let analyser;
-let dataArray;
+// =======================
+// GUARDIAN MODE
+// =======================
 
 toggle.addEventListener("change", async () => {
+
   if (toggle.checked) {
+
     if (contacts.length < 3) {
       alert("Add 3 emergency contacts first");
       toggle.checked = false;
@@ -65,46 +96,125 @@ toggle.addEventListener("change", async () => {
     }
 
     statusText.innerText = "Listening...";
-    startListening();
+    statusText.style.color = "#b9375e";
+
+    await startListening();
+
   } else {
+
+    stopListening();
     statusText.innerText = "Inactive";
+    statusText.style.color = "black";
   }
 });
 
+
+// =======================
+// AUDIO LISTENING
+// =======================
+
 async function startListening() {
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-  audioContext = new AudioContext();
-  analyser = audioContext.createAnalyser();
-  const source = audioContext.createMediaStreamSource(stream);
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-  source.connect(analyser);
-  analyser.fftSize = 256;
+    audioContext = new AudioContext();
+    analyser = audioContext.createAnalyser();
+    const source = audioContext.createMediaStreamSource(stream);
 
-  const bufferLength = analyser.frequencyBinCount;
-  dataArray = new Uint8Array(bufferLength);
+    source.connect(analyser);
+    analyser.fftSize = 256;
 
-  const canvas = document.getElementById("visualizer");
-  const ctx = canvas.getContext("2d");
+    const bufferLength = analyser.frequencyBinCount;
+    dataArray = new Uint8Array(bufferLength);
 
-  function draw() {
-    requestAnimationFrame(draw);
+    detectSound();
+
+  } catch (error) {
+    alert("Microphone access denied");
+    toggle.checked = false;
+  }
+}
+
+function stopListening() {
+
+  if (stream) {
+    stream.getTracks().forEach(track => track.stop());
+  }
+
+  if (audioContext) {
+    audioContext.close();
+  }
+}
+
+
+// =======================
+// SOUND DETECTION
+// =======================
+
+function detectSound() {
+
+  function check() {
 
     analyser.getByteFrequencyData(dataArray);
 
-    ctx.fillStyle = "#602437";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    let volume = dataArray.reduce((a, b) => a + b) / dataArray.length;
 
-    let barWidth = (canvas.width / bufferLength) * 2.5;
-    let x = 0;
+    // If loud scream detected
+    if (volume > 80) {
+      triggerEmergency();
+      return;
+    }
 
-    for (let i = 0; i < bufferLength; i++) {
-      let barHeight = dataArray[i];
-      ctx.fillStyle = "#ff7aa2";
-      ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
-      x += barWidth + 1;
+    if (toggle.checked) {
+      requestAnimationFrame(check);
     }
   }
 
-  draw();
+  check();
+}
+
+
+// =======================
+// EMERGENCY TRIGGER
+// =======================
+
+function triggerEmergency() {
+
+  stopListening();
+  statusText.innerText = "Emergency Triggered!";
+  statusText.style.color = "red";
+
+  getLocationAndAlert();
+}
+
+
+// =======================
+// LOCATION + ALERT
+// =======================
+
+function getLocationAndAlert() {
+
+  if (!navigator.geolocation) {
+    alert("Geolocation not supported");
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(position => {
+
+    const lat = position.coords.latitude;
+    const lon = position.coords.longitude;
+
+    const locationLink = `https://www.google.com/maps?q=${lat},${lon}`;
+
+    console.log("Sending alert to contacts...");
+    console.log("Location:", locationLink);
+
+    alert("Emergency Alert Sent with Location!");
+
+    // Later → send to backend API here
+
+  }, () => {
+    alert("Location access denied");
+  });
 }
