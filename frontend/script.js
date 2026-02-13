@@ -4,17 +4,31 @@ const statusText = document.getElementById("status");
 
 let contacts = JSON.parse(localStorage.getItem("contacts")) || [];
 
+// 🔥 NEW — USER NAME (asked once & stored)
+let userName = localStorage.getItem("userName");
+
+if (!userName) {
+  userName = prompt("Enter your name for emergency alerts:");
+  if (userName && userName.trim() !== "") {
+    localStorage.setItem("userName", userName.trim());
+  } else {
+    userName = "Vigilix User";
+  }
+}
+
 let audioContext;
 let analyser;
 let dataArray;
 let stream;
+let recognition;
+let emergencyTriggered = false;
+
 
 // =======================
 // CONTACT SECTION
 // =======================
 
 function renderContacts() {
-
   if (contacts.length < 3) {
     contactSection.innerHTML = `
       <h2>Add Emergency Contact (${contacts.length}/3)</h2>
@@ -23,7 +37,6 @@ function renderContacts() {
       <button onclick="addContact()">Save</button>
     `;
   } else {
-
     let details = "";
 
     contacts.forEach((c, index) => {
@@ -60,9 +73,7 @@ function addContact() {
   renderContacts();
 }
 
-// ✅ NEW — Edit Only Selected Contact
 function editContact(index) {
-
   const newName = prompt("Edit Name:", contacts[index].name);
   if (!newName) return;
 
@@ -86,7 +97,6 @@ renderContacts();
 // =======================
 
 toggle.addEventListener("change", async () => {
-
   if (toggle.checked) {
 
     if (contacts.length < 3) {
@@ -95,14 +105,16 @@ toggle.addEventListener("change", async () => {
       return;
     }
 
+    emergencyTriggered = false;
     statusText.innerText = "Listening...";
     statusText.style.color = "#b9375e";
 
     await startListening();
+    startKeywordDetection();
 
   } else {
-
     stopListening();
+    stopKeywordDetection();
     statusText.innerText = "Inactive";
     statusText.style.color = "black";
   }
@@ -114,7 +126,6 @@ toggle.addEventListener("change", async () => {
 // =======================
 
 async function startListening() {
-
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
@@ -137,11 +148,9 @@ async function startListening() {
 }
 
 function stopListening() {
-
   if (stream) {
     stream.getTracks().forEach(track => track.stop());
   }
-
   if (audioContext) {
     audioContext.close();
   }
@@ -153,25 +162,71 @@ function stopListening() {
 // =======================
 
 function detectSound() {
+  let loudCount = 0;
 
   function check() {
+    if (!toggle.checked || emergencyTriggered) return;
 
     analyser.getByteFrequencyData(dataArray);
-
     let volume = dataArray.reduce((a, b) => a + b) / dataArray.length;
 
-    // If loud scream detected
     if (volume > 80) {
-      triggerEmergency();
-      return;
+      loudCount++;
+      if (loudCount > 15) {
+        triggerEmergency();
+        return;
+      }
+    } else {
+      loudCount = 0;
     }
 
-    if (toggle.checked) {
-      requestAnimationFrame(check);
-    }
+    requestAnimationFrame(check);
   }
 
   check();
+}
+
+
+// =======================
+// KEYWORD DETECTION
+// =======================
+
+function startKeywordDetection() {
+  const SpeechRecognition =
+    window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  if (!SpeechRecognition) {
+    console.log("Speech Recognition not supported");
+    return;
+  }
+
+  recognition = new SpeechRecognition();
+  recognition.continuous = true;
+  recognition.lang = "en-US";
+
+  recognition.onresult = function (event) {
+    if (emergencyTriggered) return;
+
+    const transcript =
+      event.results[event.results.length - 1][0].transcript.toLowerCase();
+
+    if (
+      transcript.includes("help") ||
+      transcript.includes("emergency") ||
+      transcript.includes("save me") ||
+      transcript.includes("stop")
+    ) {
+      triggerEmergency();
+    }
+  };
+
+  recognition.start();
+}
+
+function stopKeywordDetection() {
+  if (recognition) {
+    recognition.stop();
+  }
 }
 
 
@@ -180,9 +235,13 @@ function detectSound() {
 // =======================
 
 function triggerEmergency() {
+  if (emergencyTriggered) return;
+  emergencyTriggered = true;
 
   stopListening();
-  statusText.innerText = "Emergency Triggered!";
+  stopKeywordDetection();
+
+  statusText.innerText = "🚨 Emergency Triggered!";
   statusText.style.color = "red";
 
   getLocationAndAlert();
@@ -194,7 +253,6 @@ function triggerEmergency() {
 // =======================
 
 function getLocationAndAlert() {
-
   if (!navigator.geolocation) {
     alert("Geolocation not supported");
     return;
@@ -204,15 +262,30 @@ function getLocationAndAlert() {
 
     const lat = position.coords.latitude;
     const lon = position.coords.longitude;
-
     const locationLink = `https://www.google.com/maps?q=${lat},${lon}`;
 
-    console.log("Sending alert to contacts...");
-    console.log("Location:", locationLink);
-
-    alert("Emergency Alert Sent with Location!");
-
-    // Later → send to backend API here
+    fetch("http://localhost:5000/send-alert", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        contacts: contacts,
+        locationLink: locationLink,
+        userName: userName   // 🔥 NEW FIELD
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        alert("Vigilix Emergency Alert Sent Successfully!");
+      } else {
+        alert("Failed to send alert");
+      }
+    })
+    .catch(err => {
+      alert("Server error");
+    });
 
   }, () => {
     alert("Location access denied");

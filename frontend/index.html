@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Vigilix - Guardian Mode</title>
+  <title>vigilix</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <link rel="manifest" href="manifest.json">
@@ -13,30 +13,27 @@
 
 <body>
 
-<div class="container">
+<div class="container"> 
 
-  <h1>🛡 Vigilix</h1>
-  <p class="subtitle">Your Silent Safety Shield</p>
+  <h1  style="color:#040c62">VIGILIX</h1>
+  <!-- <p class="subtitle">Your Silent Safety Shield</p> -->
 
   <!-- CONTACT SECTION -->
   <div id="contact-section"></div>
 
-  <!-- AUDIO VISUAL BOX -->
-  <div class="audio-box">
-    <canvas id="visualizer"></canvas>
+  <!-- GUARDIAN MODE FIRST -->
+  <div class="guardian-section">
+    <h2>Guardian Mode</h2>
+    <label class="switch">
+      <input type="checkbox" id="guardianToggle">
+      <span class="slider"></span>
+    </label>
   </div>
 
-  <!-- GUARDIAN MODE -->
-  <div class="guardian-section">
-  <h2>Guardian Mode</h2>
-  <label class="switch">
-    <input type="checkbox" id="guardianToggle">
-    <span class="slider"></span>
-  </label>
-</div>
-
-
-  <p id="status">Inactive</p>
+  <!-- STATUS BOX BELOW -->
+  <div class="status-box" id="statusBox">
+    Inactive
+  </div>
 
 </div>
 
