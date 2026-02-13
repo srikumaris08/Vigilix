@@ -264,7 +264,7 @@ function getLocationAndAlert() {
     const lon = position.coords.longitude;
     const locationLink = `https://www.google.com/maps?q=${lat},${lon}`;
 
-    fetch("http://localhost:5000/send-alert", {
+    fetch("https://vigilix-backend.onrender.com/send-alert", {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
