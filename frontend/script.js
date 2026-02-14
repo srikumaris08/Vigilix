@@ -125,11 +125,39 @@ toggle.addEventListener("change", async () => {
 // AUDIO LISTENING
 // =======================
 
-async function startListening() {
+/*async function startListening() {
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
     audioContext = new AudioContext();
+    analyser = audioContext.createAnalyser();
+    const source = audioContext.createMediaStreamSource(stream);
+
+    source.connect(analyser);
+    analyser.fftSize = 256;
+
+    const bufferLength = analyser.frequencyBinCount;
+    dataArray = new Uint8Array(bufferLength);
+
+    detectSound();
+
+  } catch (error) {
+    alert("Microphone access denied");
+    toggle.checked = false;
+  }
+}*/ 
+
+async function startListening() {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+    // 🔥 THIS LINE FIXES MOBILE + NETLIFY ISSUE
+    if (audioContext.state === "suspended") {
+      await audioContext.resume();
+    }
+
     analyser = audioContext.createAnalyser();
     const source = audioContext.createMediaStreamSource(stream);
 
@@ -170,7 +198,7 @@ function detectSound() {
     analyser.getByteFrequencyData(dataArray);
     let volume = dataArray.reduce((a, b) => a + b) / dataArray.length;
 
-    if (volume > 80) {
+    if (volume > 25) {
       loudCount++;
       if (loudCount > 15) {
         triggerEmergency();
